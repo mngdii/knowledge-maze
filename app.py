@@ -2,99 +2,138 @@ import streamlit as st
 import random
 
 # --- PAGE CONFIGURATION ---
-st.set_page_config(page_title="Knowledge Maze", page_icon="🔑", layout="centered")
+st.set_page_config(page_title="Pre-Calc 12 Mastery Maze", page_icon="📐", layout="wide")
 
-# --- CUSTOM CSS FOR BETTER LOOKS ---
+# --- CUSTOM CSS ---
 st.markdown("""
     <style>
-    .main { background-color: #f0f2f6; }
-    .stButton>button { width: 100%; border-radius: 20px; height: 3em; background-color: #4CAF50; color: white; }
+    .main { background-color: #f8f9fa; }
+    .stButton>button { width: 100%; border-radius: 20px; background-color: #4CAF50; color: white; font-weight: bold; }
+    .report-card { background-color: white; padding: 20px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 20px; }
+    .user-ans { color: #e74c3c; font-weight: bold; } /* 红色 - 用户答案 */
+    .correct-ans { color: #2e86c1; font-weight: bold; } /* 蓝色 - 正确答案 */
+    .explanation { background-color: #fdf2e9; padding: 10px; border-left: 5px solid #e67e22; margin-top: 10px; font-style: italic; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- QUESTION BANK (From your screenshots) ---
-if 'questions' not in st.session_state:
-    st.session_state.questions = [
-        {"topic": "Basic Logarithms", "q": "Simplify: log(1000)", "a": "3"},
-        {"topic": "Negative Exponents", "q": "Simplify: log_x(1/x^3)", "a": "-3"},
-        {"topic": "Changing Bases", "q": "Simplify: log_8(32)", "a": "5/3"},
-        {"topic": "Exponential Equations", "q": "Solve: 4^(x^2 - 2x) = 8^(1 - x) (Separate answers with comma, e.g., 1, 2)", "a": "3/2, -1"},
-        {"topic": "Logarithmic Identity", "q": "Solve: 9^(log_3(6)) = x", "a": "36"},
-        {"topic": "Compound Interest", "q": "Years needed for $1250 to become $7000 at 6.75% quarterly? (Round to 1 decimal)", "a": "25.7"},
-        {"topic": "Log Expressions", "q": "If log 5 = a and log 36 = b, express log(6/25) in terms of a and b", "a": "1/2b-2a"}
+# --- QUESTION DATABASE (Added Explanations) ---
+DB = {
+    "Logarithms & Exponentials": [
+        {
+            "topic": "Basic Logarithms",
+            "q": "Simplify: log(1000)",
+            "a": "3",
+            "exp": "Since the base is 10, log(1000) = log(10³). By the power rule, it equals 3."
+        },
+        {
+            "topic": "Negative Exponents",
+            "q": "Simplify: log_x(1/x^3)",
+            "a": "-3",
+            "exp": "1/x³ can be written as x⁻³. Therefore, log_x(x⁻³) = -3."
+        },
+        {
+            "topic": "Changing Bases",
+            "q": "Simplify: log_8(32)",
+            "a": "5/3",
+            "exp": "Using change of base: log(32)/log(8) = log(2⁵)/log(2³) = 5/3."
+        },
+        {
+            "topic": "Exponential Equations",
+            "q": "Solve: 4^(x^2 - 2x) = 8^(1 - x)",
+            "a": "3/2, -1",
+            "exp": "Set bases to 2: 2^(2(x²-2x)) = 2^(3(1-x)). Solving 2x²-4x = 3-3x leads to (2x-3)(x+1)=0."
+        },
+        {
+            "topic": "Logarithmic Identity",
+            "q": "Solve for x: 9^(log_3(6)) = x",
+            "a": "36",
+            "exp": "Rewrite 9 as 3². So (3²)^(log_3(6)) = 3^(2*log_3(6)) = 3^(log_3(6²)) = 6² = 36."
+        },
+        {
+            "topic": "Compound Interest",
+            "q": "Years for $1250 to become $7000 at 6.75% quarterly? (Round to 1 decimal)",
+            "a": "25.7",
+            "exp": "Use A = P(1 + r/n)^(nt). 7000 = 1250(1 + 0.0675/4)^(4t). Solving with logs gives t ≈ 25.7."
+        },
+        {
+            "topic": "Log Expressions",
+            "q": "If log 5 = a and log 36 = b, express log(6/25) in terms of a and b",
+            "a": "1/2b-2a",
+            "exp": "log(6/25) = log(6) - log(25) = log(36^0.5) - log(5²) = 1/2*log(36) - 2*log(5) = 1/2b - 2a."
+        }
     ]
-    random.shuffle(st.session_state.questions)
+}
 
-# --- SESSION STATE INITIALIZATION ---
-if 'current_idx' not in st.session_state:
-    st.session_state.current_idx = 0
-    st.session_state.score = 0
-    st.session_state.report = []
-    st.session_state.game_over = False
+# --- INITIALIZATION ---
+if 'menu' not in st.session_state: st.session_state.menu = True
+if 'curr' not in st.session_state: st.session_state.curr = 0
+if 'score' not in st.session_state: st.session_state.score = 0
+if 'report' not in st.session_state: st.session_state.report = []
+if 'done' not in st.session_state: st.session_state.done = False
 
-# --- UI LAYOUT ---
-st.title("🛡️ Knowledge Maze: The Logarithm Quest")
-st.write("Solve the problem to advance through the maze and find the treasure!")
-
-if not st.session_state.game_over:
-    # Progress bar
-    current_q = st.session_state.current_idx
-    total_q = len(st.session_state.questions)
-    progress = current_q / total_q
-    st.progress(progress)
-    st.write(f"**Current Progress: Room {current_q + 1} of {total_q}**")
-
-    # Question Display
-    q_data = st.session_state.questions[current_q]
-    with st.expander("📍 Current Location Hint", expanded=True):
-        st.write(f"**Knowledge Point:** {q_data['topic']}")
-    
-    st.subheader(q_data['q'])
-    user_ans = st.text_input("Enter your answer:", placeholder="Type here...", key=f"input_{current_q}")
-
-    if st.button("Submit & Move Forward 🏃"):
-        # Clean input for comparison
-        clean_user = user_ans.replace(" ", "").lower()
-        clean_correct = q_data['a'].replace(" ", "").lower()
-        
-        if clean_user == clean_correct:
-            st.session_state.score += 1
-            st.session_state.report.append((q_data['topic'], "Mastered ✅"))
-            st.toast("Correct! You moved forward.", icon="✅")
-        else:
-            st.session_state.report.append((q_data['topic'], f"Review Needed 🚩 (Ans: {q_data['a']})"))
-            st.toast("Wrong! You hit a trap.", icon="❌")
-        
-        # Advance to next question
-        if st.session_state.current_idx + 1 < total_q:
-            st.session_state.current_idx += 1
-            st.rerun()
-        else:
-            st.session_state.game_over = True
+# --- UI: MAIN MENU ---
+if st.session_state.menu:
+    st.title("🎓 Pre-Calculus 12 Mastery Maze")
+    st.write("Welcome to the diagnostic learning system. Select your unit:")
+    for unit in DB.keys():
+        if st.button(f"Begin {unit} Adventure"):
+            st.session_state.questions = DB[unit]
+            random.shuffle(st.session_state.questions)
+            st.session_state.menu = False
             st.rerun()
 
+# --- UI: MAZE INTERFACE ---
+elif not st.session_state.done:
+    q_list = st.session_state.questions
+    idx = st.session_state.curr
+    q_item = q_list[idx]
+
+    st.progress(idx / len(q_list), text=f"Question {idx+1} of {len(q_list)}")
+    st.subheader(q_item['q'])
+    user_input = st.text_input("Answer:", key=f"input_{idx}")
+
+    if st.button("Submit Answer"):
+        is_correct = user_input.replace(" ","").lower() == q_item['a'].replace(" ","").lower()
+        if is_correct: st.session_state.score += 1
+        
+        # 记录详细报告：原题、用户答案、正确答案、解析
+        st.session_state.report.append({
+            "question": q_item['q'],
+            "user_ans": user_input if user_input else "(Empty)",
+            "correct_ans": q_item['a'],
+            "is_correct": is_correct,
+            "explanation": q_item['exp']
+        })
+
+        if idx + 1 < len(q_list):
+            st.session_state.curr += 1
+        else:
+            st.session_state.done = True
+        st.rerun()
+
+# --- UI: ENHANCED DIAGNOSTIC REPORT ---
 else:
-    # --- END SCREEN ---
     st.balloons()
-    st.success("🏁 You've reached the end of the maze!")
+    st.header("📊 Final Diagnostic Report")
+    st.metric("Final Score", f"{st.session_state.score}/{len(st.session_state.questions)}")
     
-    col1, col2 = st.columns(2)
-    col1.metric("Final Score", f"{st.session_state.score}/{len(st.session_state.questions)}")
+    st.markdown("---")
     
-    if st.session_state.score == len(st.session_state.questions):
-        st.write("🎁 **Incredible! You opened the Golden Chest!**")
-    else:
-        st.write("🗝️ **You escaped, but some treasures remain hidden.**")
+    for i, item in enumerate(st.session_state.report):
+        with st.container():
+            # 使用 Markdown 渲染自定义颜色的报告卡
+            status_icon = "✅" if item['is_correct'] else "❌"
+            st.markdown(f"""
+            <div class="report-card">
+                <h4>Question {i+1}: {item['question']}</h4>
+                <p><b>Your Answer:</b> <span class="user-ans">{item['user_ans']}</span> {status_icon}</p>
+                <p><b>Correct Answer:</b> <span class="correct-ans">{item['correct_ans']}</span></p>
+                <div class="explanation">
+                    <b>Tutor's Explanation:</b><br>{item['explanation']}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
-    st.markdown("### 📊 Diagnostic Report")
-    st.write("Share this with your tutor to focus on your weak points:")
-    for topic, status in st.session_state.report:
-        st.write(f"- **{topic}**: {status}")
-
-    if st.button("Restart Adventure 🔄"):
-        st.session_state.current_idx = 0
-        st.session_state.score = 0
-        st.session_state.report = []
-        st.session_state.game_over = False
-        random.shuffle(st.session_state.questions)
+    if st.button("Return to Main Menu"):
+        for key in list(st.session_state.keys()): del st.session_state[key]
         st.rerun()
